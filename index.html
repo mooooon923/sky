@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="내 위치와 지금 시각으로 계산한 하늘색이 화면 가득 번져요.">
+<meta property="og:title" content="지금 여기 하늘">
+<meta property="og:description" content="내 위치와 지금 시각으로 계산한 하늘색이 화면 가득 번져요.">
+<meta name="theme-color" content="#EC3A4C">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="하늘">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>지금 여기 하늘</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+/* 전면 하늘: 태양 고도로 색이 정해지는 세 겹의 번진 빛 + 유리 구슬 태양, 글자는 그 위에 크게 */
+:root {
+  --sky-1: #EC3A4C;
+  --sky-2: #EB6BAE;
+  --sky-3: #E7D98A;
+  --sky-4: #F07A5A;
+  --text: #FFFFFF;
+  --text-dim: rgba(255,255,255,.72);
+  --glass: rgba(255,255,255,.16);
+  --glass-line: rgba(255,255,255,.28);
+  --ink: #0A0A0C;
+  --font: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+  color-scheme: dark;
+}
+:root.light-sky {
+  --text: #0E0F14;
+  --text-dim: rgba(14,15,20,.62);
+  --glass: rgba(255,255,255,.4);
+  --glass-line: rgba(255,255,255,.6);
+}
+html, body { height: 100%; }
+body { margin: 0; }
+* { box-sizing: border-box; }
+body { background: var(--sky-1); color: var(--text); font-family: var(--font); -webkit-font-smoothing: antialiased; overflow: hidden; letter-spacing: -0.01em; }
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; border: 0; background: none; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+
+.sky { position: fixed; inset: 0; overflow: hidden; background: var(--sky-1); transition: background-color 1.4s; }
+.blob { position: absolute; border-radius: 50%; filter: blur(56px); transition: background-color 1.4s; will-change: transform; }
+.b1 { width: 80vmax; height: 65vmax; left: -25vmax; top: -25vmax; background: var(--sky-1); animation: drift1 22s ease-in-out infinite alternate; }
+.b2 { width: 60vmax; height: 60vmax; right: -28vmax; top: 18vh; background: var(--sky-2); animation: drift2 26s ease-in-out infinite alternate; }
+.b3 { width: 70vmax; height: 55vmax; left: -30vmax; bottom: -22vmax; background: var(--sky-3); animation: drift3 30s ease-in-out infinite alternate; }
+.b4 { width: 50vmax; height: 50vmax; right: -20vmax; bottom: -16vmax; background: var(--sky-4); animation: drift4 18s ease-in-out infinite alternate; opacity: .9; }
+@keyframes drift4 { to { transform: translate(-14vmax, -10vmax) scale(1.15); } }
+@keyframes drift1 { to { transform: translate(8vmax, 6vmax) scale(1.08); } }
+@keyframes drift2 { to { transform: translate(-10vmax, -4vmax) scale(.94); } }
+@keyframes drift3 { to { transform: translate(12vmax, -6vmax) scale(1.1); } }
+.scrubbing .sky, .scrubbing .blob, .scrubbing .orb { transition: none; }
+
+.orb {
+  position: absolute; width: min(46vw, 210px); aspect-ratio: 1; border-radius: 50%;
+  left: var(--ox, 50%); top: var(--oy, 40%); transform: translate(-50%, -50%);
+  opacity: var(--oo, 1);
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255,255,255,.95) 0 6%, rgba(255,255,255,0) 22%),
+    radial-gradient(circle at 70% 78%, rgba(255,255,255,.55) 0, rgba(255,255,255,0) 35%),
+    radial-gradient(circle at 50% 50%, var(--orb-core, #fff) 0%, var(--orb-edge, rgba(255,255,255,.2)) 70%, rgba(255,255,255,.5) 100%);
+  box-shadow: 0 0 80px 30px var(--orb-glow, rgba(255,255,255,.35)), inset -10px -14px 30px rgba(255,255,255,.35), inset 8px 10px 24px rgba(255,255,255,.4);
+  transition: left 1.4s, top 1.4s, opacity 1.4s, background .6s;
+}
+.grain { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .09; mix-blend-mode: overlay; pointer-events: none; }
+
+.ui {
+  position: relative; z-index: 1; height: 100%; max-width: 520px; margin: 0 auto;
+  display: flex; flex-direction: column;
+  padding-left: max(20px, env(safe-area-inset-left, 0px));
+  padding-right: max(20px, env(safe-area-inset-right, 0px));
+  padding-top: calc(18px + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+  transition: color 1.4s;
+}
+.top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; font-size: 13px; line-height: 1.45; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.top b { display: block; color: var(--text); font-size: 15px; font-weight: 700; }
+.top .r { text-align: right; }
+.hero { margin-top: 28px; }
+.phase { font-size: 28px; white-space: nowrap; line-height: 1.3; font-weight: 700; letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+.clock { display: flex; align-items: baseline; gap: 8px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.clock .t { font-size: 15px; font-weight: 600; letter-spacing: -0.03em; }
+.clock .d { font-size: 15px; color: var(--text-dim); }
+.line { margin: 12px 0 0; font-size: 15px; line-height: 1.6; max-width: 32ch; color: var(--text-dim); }
+
+.panel {
+  margin-top: auto; padding: 16px 16px 14px; border-radius: 28px;
+  background: var(--glass); border: 1px solid var(--glass-line);
+  backdrop-filter: blur(20px) saturate(1.3); -webkit-backdrop-filter: blur(20px) saturate(1.3);
+}
+.scrub-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-dim); font-variant-numeric: tabular-nums; margin-bottom: 6px; }
+input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 32px; background: transparent; }
+input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: var(--glass-line); }
+input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--glass-line); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; margin-top: -10px; border-radius: 50%; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.25); }
+input[type=range]::-moz-range-thumb { width: 24px; height: 24px; border: 0; border-radius: 50%; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.25); }
+.btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.btn { height: 52px; border-radius: 26px; font-size: 15px; font-weight: 600; background: var(--glass); border: 1px solid var(--glass-line); }
+.btn.main { grid-column: 1 / -1; background: var(--ink); color: #fff; border: 0; height: 56px; font-size: 17px; }
+.btn[aria-pressed="true"] { background: #fff; color: var(--ink); }
+.toast {
+  position: fixed; left: 50%; top: calc(16px + env(safe-area-inset-top, 0px)); transform: translate(-50%, -12px); z-index: 5;
+  background: var(--ink); color: #fff; padding: 11px 18px; border-radius: 22px; font-size: 14px;
+  opacity: 0; transition: .3s; pointer-events: none; max-width: calc(100vw - 32px); text-align: center;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+@media (prefers-reduced-motion: reduce) { .blob { animation: none; } * { transition-duration: 0s !important; } }
+@media (max-height: 640px) { .hero { margin-top: 16px; } }
+</style>
+</head>
+<body>
+
+<div class="sky" id="sky" aria-hidden="true">
+  <div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div><div class="blob b4"></div>
+  <div class="orb" id="orb"></div>
+  <canvas class="grain" id="grain"></canvas>
+</div>
+
+<main class="ui">
+  <div class="top">
+    <div><b id="place">서울</b><span id="coord">37.57°N 126.98°E</span></div>
+    <div class="r"><b id="alt">태양 고도 0°</b><span id="next">일몰까지 —</span></div>
+  </div>
+  <div class="hero">
+    <h1 class="phase" id="phase">노을</h1>
+    <div class="clock"><span class="t" id="time">18:12</span><span class="d" id="date"></span></div>
+    <p class="line" id="line">해가 지평선에 걸린 시간이에요.</p>
+  </div>
+  <div class="panel">
+    <div class="scrub-row"><span>00:00</span><span id="scrubLabel">지금</span><span>24:00</span></div>
+    <input type="range" id="scrub" min="0" max="1439" step="1" aria-label="하루 중 시간">
+    <div class="btns">
+      <button class="btn main" id="locate">내 위치로 보기</button>
+      <button class="btn" id="play" aria-pressed="false">하루 돌려보기</button>
+      <button class="btn" id="save">이 하늘 저장</button>
+    </div>
+  </div>
+</main>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/* ---------- 태양 위치 (SunCalc 공식 축약) ---------- */
+const RAD = Math.PI / 180, E = RAD * 23.4397;
+function sunPos(date, lat, lng) {
+  const d = date / 864e5 - 0.5 + 2440588 - 2451545;
+  const M = RAD * (357.5291 + 0.98560028 * d);
+  const C = RAD * (1.9148 * Math.sin(M) + 0.02 * Math.sin(2 * M) + 0.0003 * Math.sin(3 * M));
+  const L = M + C + RAD * 102.9372 + Math.PI;
+  const dec = Math.asin(Math.sin(E) * Math.sin(L));
+  const ra = Math.atan2(Math.sin(L) * Math.cos(E), Math.cos(L));
+  const H = RAD * (280.16 + 360.9856235 * d) - RAD * -lng - ra;
+  const phi = RAD * lat;
+  return {
+    alt: Math.asin(Math.sin(phi) * Math.sin(dec) + Math.cos(phi) * Math.cos(dec) * Math.cos(H)) / RAD,
+    az: Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(phi) - Math.tan(dec) * Math.cos(phi)) / RAD, // 남쪽 0, 서쪽 +
+  };
+}
+
+/* ---------- 고도별 하늘색 ---------- */
+const SET = [ // 해가 지는 쪽
+  [-30, "#04050C", "#0B1030", "#1B1640"],
+  [-12, "#0A1236", "#26307A", "#5B3F8F"],
+  [-4,  "#1D2A78", "#7A4FB0", "#EB6BAE"],
+  [2,   "#EC3A4C", "#EB6BAE", "#E7D98A"],
+  [10,  "#F2875A", "#F7B98A", "#FBE3B0"],
+  [25,  "#2F7BEA", "#7DB8FF", "#DCEBFF"],
+  [70,  "#1F6BEA", "#5FA8FF", "#CFE6FF"],
+];
+const RISE = [ // 해가 뜨는 쪽
+  [-30, "#04050C", "#0B1030", "#1B1640"],
+  [-12, "#0C1438", "#2B3A86", "#4E4A9A"],
+  [-4,  "#2A3A8C", "#9C7BD0", "#F4A3B8"],
+  [2,   "#F07A8C", "#F9B4B0", "#FFE3B8"],
+  [10,  "#8EC0F5", "#CFE3FA", "#FFF1DA"],
+  [25,  "#2F7BEA", "#7DB8FF", "#DCEBFF"],
+  [70,  "#1F6BEA", "#5FA8FF", "#CFE6FF"],
+];
+const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const mix = (a, b, t) => { const A = hex(a), B = hex(b); return "#" + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, "0")).join(""); };
+function skyColors(alt, rising) {
+  const K = rising ? RISE : SET;
+  if (alt <= K[0][0]) return K[0].slice(1);
+  for (let i = 1; i < K.length; i++) if (alt <= K[i][0]) {
+    const t = (alt - K[i - 1][0]) / (K[i][0] - K[i - 1][0]);
+    return [1, 2, 3].map(j => mix(K[i - 1][j], K[i][j], t));
+  }
+  return K[K.length - 1].slice(1);
+}
+const lum = h => { const [r, g, b] = hex(h).map(v => { v /= 255; return v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }); return .2126 * r + .7152 * g + .0722 * b; };
+
+function phaseOf(alt, rising) {
+  if (alt < -18) return ["밤", "별이 제일 잘 보이는 깊은 밤이에요."];
+  if (alt < -10) return rising ? ["새벽", "아직 어둡지만 동쪽이 조금씩 묽어지고 있어요."] : ["어스름", "해는 졌는데 하늘 끝에 빛이 남아 있어요."];
+  if (alt < -4) return rising ? ["여명", "해가 뜨기 직전, 하늘이 보랏빛으로 열리는 중이에요."] : ["블루아워", "세상이 온통 파랗게 가라앉는 몇 분이에요."];
+  if (alt < 8) return rising ? ["해돋이", "해가 지평선 위로 막 올라왔어요."] : ["노을", "하늘이 제일 붉게 타는 시간이에요."];
+  if (alt < 20) return rising ? ["아침", "빛이 낮게 깔려서 그림자가 길어요."] : ["골든아워", "모든 게 제일 예쁘게 보이는 빛이에요."];
+  return ["한낮", "해가 높이 떠서 하늘이 가장 파래요."];
+}
+
+/* ---------- 상태 ---------- */
+const S = { lat: 37.5665, lng: 126.9780, place: "서울", mine: false, offset: null, playing: false };
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2, "0");
+
+function currentDate() {
+  const now = new Date();
+  if (S.offset === null) return now;
+  const d = new Date(now); d.setHours(0, 0, 0, 0); return new Date(+d + S.offset * 60000);
+}
+
+function nextEvent(date) {
+  const start = sunPos(date, S.lat, S.lng).alt > -0.833;
+  for (let m = 1; m <= 1440; m++) {
+    const up = sunPos(new Date(+date + m * 60000), S.lat, S.lng).alt > -0.833;
+    if (up !== start) {
+      const h = Math.floor(m / 60), mm = m % 60;
+      return (start ? "일몰까지 " : "일출까지 ") + (h ? h + "시간 " : "") + mm + "분";
+    }
+  }
+  return start ? "오늘은 해가 안 져요" : "오늘은 해가 안 떠요";
+}
+
+let lastEventAt = 0, lastEventText = "";
+function render() {
+  const date = currentDate();
+  const p = sunPos(date, S.lat, S.lng);
+  const rising = sunPos(new Date(+date + 600000), S.lat, S.lng).alt > p.alt;
+  const [c1, c2, c3] = skyColors(p.alt, rising);
+  const root = document.documentElement.style;
+  root.setProperty("--sky-1", c1); document.querySelector('meta[name="theme-color"]')?.setAttribute("content", c1); root.setProperty("--sky-2", c2); root.setProperty("--sky-3", c3); root.setProperty("--sky-4", mix(c1, c3, .5));
+  document.documentElement.classList.toggle("light-sky", lum(c2) > 0.42);
+
+  // 구슬: 해가 떠 있으면 해, 지면 반대편에 달처럼
+  const day = p.alt > -6;
+  const az = day ? p.az : ((p.az + 360) % 360) - 180;
+  const alt = day ? p.alt : Math.min(60, -p.alt * 0.8);
+  const x = 50 + Math.max(-1, Math.min(1, az / 100)) * 32;
+  const y = 62 - Math.max(-20, Math.min(70, alt)) * 0.62;
+  root.setProperty("--ox", x + "%"); root.setProperty("--oy", y + "%");
+  root.setProperty("--oo", day ? (p.alt < -3 ? .5 : 1) : .85);
+  root.setProperty("--orb-core", day ? mix(c3, "#FFFFFF", .55) : "#F4F2FF");
+  root.setProperty("--orb-edge", day ? c3 + "88" : "#B9B6E888");
+  root.setProperty("--orb-glow", day ? c3 + "aa" : "#9C9CFF55");
+
+  const [name, line] = phaseOf(p.alt, rising);
+  $("phase").textContent = name;
+  $("line").textContent = line;
+  $("time").textContent = pad(date.getHours()) + ":" + pad(date.getMinutes());
+  $("date").textContent = (date.getMonth() + 1) + "월 " + date.getDate() + "일";
+  $("alt").textContent = "태양 고도 " + p.alt.toFixed(1) + "°";
+  if (!S.playing && (Math.abs(+date - lastEventAt) > 60000 || !lastEventText)) { lastEventText = nextEvent(date); lastEventAt = +date; }
+  $("next").textContent = S.playing ? "하루를 돌리는 중" : lastEventText;
+  $("place").textContent = S.place;
+  $("coord").textContent = Math.abs(S.lat).toFixed(2) + "°" + (S.lat >= 0 ? "N " : "S ") + Math.abs(S.lng).toFixed(2) + "°" + (S.lng >= 0 ? "E" : "W");
+  const mins = date.getHours() * 60 + date.getMinutes();
+  if (document.activeElement !== $("scrub")) $("scrub").value = mins;
+  $("scrubLabel").textContent = S.offset === null ? "지금" : "지금으로 돌아가기";
+}
+
+/* ---------- 조작 ---------- */
+let scrubTimer;
+$("scrub").addEventListener("input", e => {
+  stopPlay();
+  document.body.classList.add("scrubbing");
+  S.offset = +e.target.value; lastEventText = ""; render();
+  clearTimeout(scrubTimer); scrubTimer = setTimeout(() => document.body.classList.remove("scrubbing"), 200);
+});
+$("scrubLabel").addEventListener("click", () => { S.offset = null; lastEventText = ""; render(); });
+
+let raf;
+function stopPlay() { if (!S.playing) return; S.playing = false; cancelAnimationFrame(raf); $("play").setAttribute("aria-pressed", "false"); $("play").textContent = "하루 돌려보기"; document.body.classList.remove("scrubbing"); lastEventText = ""; render(); }
+$("play").onclick = () => {
+  if (S.playing) return stopPlay();
+  S.playing = true; $("play").setAttribute("aria-pressed", "true"); $("play").textContent = "멈추기";
+  document.body.classList.add("scrubbing");
+  let start = S.offset === null ? (new Date().getHours() * 60 + new Date().getMinutes()) : S.offset, t0 = performance.now();
+  const step = now => {
+    if (!S.playing) return;
+    S.offset = Math.floor(start + (now - t0) / 1000 * 120) % 1440; // 1초에 2시간
+    render(); raf = requestAnimationFrame(step);
+  };
+  raf = requestAnimationFrame(step);
+};
+
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2600); }
+
+$("locate").onclick = () => {
+  if (!navigator.geolocation) return toast("이 브라우저에선 위치를 쓸 수 없어서 서울 하늘을 보여줘요");
+  $("locate").textContent = "위치 찾는 중…";
+  navigator.geolocation.getCurrentPosition(pos => {
+    S.lat = pos.coords.latitude; S.lng = pos.coords.longitude; S.mine = true; S.place = "내 위치";
+    S.offset = null; lastEventText = "";
+    $("locate").textContent = "내 위치의 하늘이에요";
+    render(); nameMyPlace();
+  }, () => {
+    $("locate").textContent = "내 위치로 보기";
+    toast("위치를 못 받아서 서울 하늘을 보여줘요");
+  }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 600000 });
+};
+
+// 동네 이름은 되면 붙이고, 안 되면 좌표만 보여줘요. 위치는 이 요청 말고 어디에도 보내지 않아요.
+async function nameMyPlace() {
+  try {
+    const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${S.lat}&longitude=${S.lng}&localityLanguage=ko`);
+    const j = await r.json();
+    const n = j.locality || j.city || j.principalSubdivision;
+    if (n) { S.place = n; render(); }
+  } catch (e) {}
+}
+
+/* ---------- 저장 ---------- */
+$("save").onclick = async () => {
+  try { await document.fonts.ready; } catch (e) {}
+  const W = 1080, H = 1920, c = document.createElement("canvas"); c.width = W; c.height = H;
+  const x = c.getContext("2d"), cs = getComputedStyle(document.documentElement), F = getComputedStyle(document.body).fontFamily;
+  const v = n => cs.getPropertyValue(n).trim();
+  x.fillStyle = v("--sky-1"); x.fillRect(0, 0, W, H);
+  [[v("--sky-1"), 200, 300, 1100], [v("--sky-2"), 1000, 900, 900], [v("--sky-3"), 150, 1800, 1000], [v("--sky-4"), 1000, 1700, 800]].forEach(([col, cx, cy, r]) => {
+    const g = x.createRadialGradient(cx, cy, 0, cx, cy, r); g.addColorStop(0, col); g.addColorStop(1, col + "00");
+    x.fillStyle = g; x.fillRect(0, 0, W, H);
+  });
+  const ox = parseFloat(v("--ox")) / 100 * W, oy = parseFloat(v("--oy")) / 100 * H * .85, R = 220;
+  x.globalAlpha = parseFloat(v("--oo")) || 1;
+  const og = x.createRadialGradient(ox - R * .35, oy - R * .4, 10, ox, oy, R);
+  og.addColorStop(0, "#ffffff"); og.addColorStop(.5, v("--orb-core")); og.addColorStop(1, v("--orb-edge"));
+  x.shadowColor = v("--orb-glow"); x.shadowBlur = 160;
+  x.fillStyle = og; x.beginPath(); x.arc(ox, oy, R, 0, Math.PI * 2); x.fill();
+  x.shadowBlur = 0; x.globalAlpha = 1;
+  const tc = v("--text") || "#fff", td = v("--text-dim");
+  x.fillStyle = tc; x.font = `800 170px ${F}`; x.fillText($("phase").textContent, 76, 1560);
+  x.font = `400 72px ${F}`; x.fillText($("time").textContent, 80, 1670);
+  x.fillStyle = td; x.font = `500 42px ${F}`;
+  x.fillText($("date").textContent + "  ·  " + $("place").textContent + "  ·  " + $("alt").textContent, 82, 1750);
+  x.fillText("지금 여기 하늘", 82, 130);
+  c.toBlob(async blob => {
+    const file = new File([blob], "sky.png", { type: "image/png" });
+    try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; } }
+    catch (e) { if (e.name === "AbortError") return; }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "sky.png"; a.click();
+    toast("하늘을 저장했어요");
+  });
+};
+
+/* ---------- 결 ---------- */
+(() => {
+  const g = $("grain"); g.width = Math.min(900, innerWidth); g.height = Math.min(1400, innerHeight);
+  const x = g.getContext("2d"), img = x.createImageData(g.width, g.height);
+  for (let i = 0; i < img.data.length; i += 4) { const n = Math.random() * 255; img.data[i] = img.data[i + 1] = img.data[i + 2] = n; img.data[i + 3] = 255; }
+  x.putImageData(img, 0, 0);
+})();
+
+render();
+setInterval(() => { if (S.offset === null && !S.playing) render(); }, 30000);
+</script>
+
+</body>
+</html>
